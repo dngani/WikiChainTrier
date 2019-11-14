@@ -1,96 +1,117 @@
 pragma solidity ^0.5.0;
 pragma experimental ABIEncoderV2;
 
+import "./WikiChainArticle.sol";
+import "./WikiChainUtilities.sol";
+
 contract WikiChain{
     
-    struct Article {
-        int pageid;
-    	int revid;
-    	string url;
-    	string title;
-    	string description;
-    	string lastmodified;
-    }
-    
-     struct Address2Id {
-        address contractaddress;
-        int revid;
-        int pageid;
-    }
-    
-    struct ArticleOutput{
-	    address myaddress;
-	    int pageid;
-	    int revid;
-	    string url;
-	    string title;
-	    string description;
-	    string lastmodified;
+   	event contractAlreadyExist(string, uint, uint, string);
+	event contractAdded(uint,address, string, uint, uint);
+	event requestFunction(uint, string);
+	event callContractData(address, uint, uint, string);
+	event newDeposit( address _from, uint _value, uint _timestamp);
+	
+	modifier positiveValue{
+	    assert(msg.value > 0);
+	    _;
 	}
+	
+    // The register: save in location "storage" per default
+    mapping (string => WikiChainUtilities.Address2Id []) private URL2Addresses ;
+    uint private counter = 0;
     
-    // The register
-    mapping (string => Address2Id []) URL2Addresses;
+    // The constructor
+    constructor() public payable { }
     
-    ArticleOutput [] outputs;
-    
-    constructor() public{ }
-    
-    // As a Factory, it will only generate new instance of the contract WikiChainaRticle with the given datas.
-    function generateContracts4Articles( Article [] memory datas) public{
+    /* 
+    * As a Factory, this method will generate new instances of the contract WikiChainArticle with the given datas.
+    */
+    function generateContracts4Articles( WikiChainUtilities.Article [] memory datas) public returns (uint) {
        
-       require (datas.length > 0, "The datafeed is empty. Please fill it out!");
-       
+       // Minimun one entry should be available. throw a exception if the input array is empty.
+        require (datas.length > 0, "The datafeed is empty. Please fill it out!");
+        
         WikiChainArticle tmp;
-        Address2Id memory a2p;
+        WikiChainUtilities.Address2Id memory a2p;
         
         uint len = uint(datas.length);
         
 	    for(uint i=0; i<len; i++){
 	        
-	        // we can control if a contract with the given pageid and revid already exist. And refuse the new contract if it is the case.
-	        require ( !lookup(datas[i].url, datas[i].pageid, datas[i].revid), "The pair key-value <pageid,revid> already exist.");
-	        //The new contract is generated for every tuple
-	        tmp = new WikiChainArticle(datas[i], address(this));
+	        // We can verified if the data entry is correct ...
 	        
+	        // We control if a contract with the given url, pageid and revid already exist. And don create a new contract if it is the case.
+	        if( lookup(datas[i].url, datas[i].pageid, datas[i].revid)) {
+	           emit contractAlreadyExist(datas[i].url, datas[i].pageid, datas[i].revid, "The key-value ( <url> -> <pageid,revid> ) already exist.");
+	           continue;
+	        }
+	        
+	        //A new contract is generated for every tuple.
+	        tmp = (new WikiChainArticle).value(30000000)(address(this));
+	        tmp.setDatas(datas[i]);
+	  	        
 	        // Save the new value in the register URL2Addresses
     	    a2p.contractaddress = address(tmp);
     	  	a2p.revid = datas[i].revid;
     	  	a2p.pageid = datas[i].pageid;
     	    
-    	    // Control if the url already exist as key
-    	    if (URL2Addresses[datas[i].url].length > 0){
-    	        
-    	    }
-    	    URL2Addresses[datas[i].url].push(a2p);
+    	   // The new contract for the article must already exist at this point 
+    	   //assert(a2p.contractaddress != address(0)); 
+    	   
+    	   // Even if the url already exist as key, the new infos will be save a the array mapping this url.
+    	   URL2Addresses[datas[i].url].push(a2p);
+    	   counter++;
+    	   emit contractAdded(counter, a2p.contractaddress, datas[i].url, datas[i].pageid, datas[i].revid);
 	    }
+	    return counter;
     }
     
-   function request( string memory url) public returns (ArticleOutput [] memory) {
-        // lookup in the register if a given url already exist before crawling the blockchain for the corresponding contracts
+    /*
+     * When the user is searching a url (coming from wikipedia),
+        1. the url should not be empty
+        2. we first lookup in the register "URL2Addresses", if some contracts exist for the given url.
+        3. If there is no entry in the register, we give a empty output back.
+        4. Otherwise, we would call the different contracts, collect the saved informations and sent it back as return value.
+     *
+    */
+   function request( string memory url) public returns (WikiChainUtilities.ArticleOutput [] memory) {
         
+        // lookup in the register if a given url already exist before crawling the blockchain for the corresponding contracts
         require (bytes(url).length > 0, "The url is not correct. The variable is empty for this transaction.");
         
-        Address2Id [] memory results;
+        WikiChainUtilities.ArticleOutput [] memory outputs;
+        WikiChainUtilities.Address2Id [] memory results;
         
         if ( URL2Addresses[url].length != 0 ){
 	        results = URL2Addresses[url];
 	        
 	        // read the informations out ofthe contract addresses, we just find
-	        getInfos(results);
+	       outputs = callContracts(results);
 	        
 	    } else{
 	        // There is not entry for the given url.
 	        delete outputs;
 	    }
 	    
+	    emit requestFunction(outputs.length, url);
 	    return outputs;
       
     }
     
-     function lookup ( string memory url, int pageid, int revid) public view returns (bool) {
+    function callContract(address payable article) public view returns (WikiChainUtilities.ArticleOutput memory){
+	    
+	    require (article != address(0), "The contract address is not valid. Please give another one.");
+	    WikiChainArticle tmp = WikiChainArticle(article);
+	    
+	    //emit callContractData(article, tmp.pageid(), tmp.revid(), tmp.title());
+	   
+	   return tmp.toString();
+	}
+    
+     function lookup ( string memory url, uint pageid, uint revid) internal view returns (bool) {
         // lookp in the register if a given url already exist before crawling the blockchain for the corresponding contracts
-        
-        Address2Id [] memory results;
+        WikiChainUtilities.Address2Id [] memory results;
         
         if ( URL2Addresses[url].length > 0 ){
 	        results = URL2Addresses[url];
@@ -105,69 +126,27 @@ contract WikiChain{
 	    return false;
     }
     
-    function getInfos(Address2Id [] memory results) public { //returns (address,int, int, string memory, string memory, string memory, string memory){
+    function callContracts(WikiChainUtilities.Address2Id [] memory results) internal view returns (WikiChainUtilities.ArticleOutput [] memory){
 	    
 	    require (results.length > 0, "There is no contract to check out.");
 	    
-	    delete outputs;
-	    //ArticleOutput [] storage ops = outputs;
+	    WikiChainUtilities.ArticleOutput [] memory ops =  new WikiChainUtilities.ArticleOutput [](results.length);
 	    for (uint i; i< results.length;i++){
 	        WikiChainArticle tmp = WikiChainArticle(results[i].contractaddress);
-            // Read the infos out of contracts addresses
-            //tmp = WikiChainArticle(results[i].contractaddress);
-            
-            ArticleOutput memory ops = tmp.toString();
-            outputs.push(ops);
-           //ops.push( tmp.toString()) ;
-           
+            ops[i] = tmp.toString() ;
         }
-        // outputs.push(ops);
-	   //return tmp.toString();
+	   return ops;
+	}
+	
+	// If the contract received some ether, it will handel it
+	function () external payable positiveValue {
+	    require(msg.data.length == 0);
+	    emit newDeposit( msg.sender, msg.value, block.timestamp);
+	}
+	
+	function getRegisterCounter() public view returns(uint){
+	    return counter;
 	}
 	
 }
 
-/**
- * 
- * Standard Template for the articles on the blockchain
- * 
-**/
-contract WikiChainArticle {
-
-	int pageid;
-	int revid;
-	string url;
-	string title;
-	string description;
-	string lastmodified;
-	address register;
-	
-	WikiChain.ArticleOutput op;
-	
-	constructor (WikiChain.Article memory data, address reg) public {
-	    pageid = data.pageid;
-	    revid = data.revid;
-	    url = data.url;
-	    title = data.title;
-	    description = data.description;
-	    lastmodified = data.lastmodified;
-	    register = reg;
-	}
-	
-	/*function toString () public view returns (address, int, int, string memory, string memory, string memory, string memory) {
-	    return (address(this), pageid, revid, url, title, description, lastmodified);
-	}*/
-	
-	function toString () public returns (WikiChain.ArticleOutput memory) {
-	    op.myaddress = address(this);
-	    op.pageid = pageid;
-	    op.revid = revid;
-	    op.url = url;
-	    op.title = title;
-	    op.description = description;
-	    op.lastmodified = lastmodified;
-	    
-	    return op;
-	}
-	
-}
