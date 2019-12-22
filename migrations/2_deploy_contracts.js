@@ -11,9 +11,11 @@ module.exports = function(deployer) {
 
 		var utils = await wc_utilities.deployed();
 
-		var register = "0x0000000000000000000000000000000000000000";
+		//var register = "0x0000000000000000000000000000000000000000";
+		//await deployer.deploy(wc_article, register, {overwrite: true, value:300000});
 
-		await deployer.deploy(wc_article, register, {overwrite: true, value:300000});
+
+		await deployer.deploy(wc_article, {overwrite: true, value:300000});
 
 		await deployer.link(wc_utilities,wikichain);
 		await deployer.link(wc_article,wikichain);

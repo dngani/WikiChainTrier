@@ -10,19 +10,49 @@ contract WikiChain{
 	event contractAdded(uint,address, string, uint, uint);
 	event requestFunction(uint, string);
 	event callContractData(address, uint, uint, string);
-	event newDeposit( address _from, uint _value, uint _timestamp);
+	event newDeposit( address, uint, uint);
 	
 	modifier positiveValue{
 	    assert(msg.value > 0);
 	    _;
 	}
 	
-    // The register: save in location "storage" per default
+	// The register: save in "storage" per default.
     mapping (string => WikiChainUtilities.Address2Id []) private URL2Addresses ;
     uint private counter = 0;
     
+    // Config for the loop
+    string rccontinue;
+    string lpcontinue;
+    string startdate;
+    string enddate;
+    
     // The constructor
-    constructor() public payable { }
+    constructor() public payable { 
+    	if(msg.value > 0){
+    		emit newDeposit( msg.sender, msg.value, block.timestamp);
+    	}
+    }
+
+    // If the contract received some ether, it will handel it
+	function () external payable positiveValue {
+	    require(msg.data.length == 0);
+	    emit newDeposit( msg.sender, msg.value, block.timestamp);
+	}
+	
+	function getRegisterCounter() public view returns(uint){
+	    return counter;
+	}
+	
+
+	function setLoopConfig(string memory rccont, string memory cont, string memory sdate, string memory edate ) public returns(bool){
+		rccontinue = rccont;
+		lpcontinue = cont;
+		startdate = sdate;
+		enddate = edate;
+
+	   return true;
+	}
     
     /* 
     * As a Factory, this method will generate new instances of the contract WikiChainArticle with the given datas.
@@ -47,9 +77,9 @@ contract WikiChain{
 	           continue;
 	        }
 	        
-	        //A new contract is generated for every tuple.
-	        tmp = (new WikiChainArticle).value(30000000)(address(this));
-	        tmp.setDatas(datas[i]);
+	        //A new contract is generated for every tuple. We need to sent some Gas for the writing operation in the contract storage.
+	        tmp = (new WikiChainArticle).value(30000000)();
+	        tmp.setDatas(address(this), datas[i]);
 	  	        
 	        // Save the new value in the register URL2Addresses
     	    a2p.contractaddress = address(tmp);
@@ -59,11 +89,12 @@ contract WikiChain{
     	   // The new contract for the article must already exist at this point 
     	   //assert(a2p.contractaddress != address(0)); 
     	   
-    	   // Even if the url already exist as key, the new infos will be save a the array mapping this url.
+    	   // Even if the url already exist as key, the new infos will be save in the array mapping this url.
     	   URL2Addresses[datas[i].url].push(a2p);
     	   counter++;
     	   emit contractAdded(counter, a2p.contractaddress, datas[i].url, datas[i].pageid, datas[i].revid);
 	    }
+
 	    return counter;
     }
     
@@ -75,7 +106,7 @@ contract WikiChain{
         4. Otherwise, we would call the different contracts, collect the saved informations and sent it back as return value.
      *
     */
-   function request( string memory url) public returns (WikiChainUtilities.ArticleOutput [] memory) {
+   	function request( string memory url) public returns (WikiChainUtilities.ArticleOutput [] memory) {
         
         // lookup in the register if a given url already exist before crawling the blockchain for the corresponding contracts
         require (bytes(url).length > 0, "The url is not correct. The variable is empty for this transaction.");
@@ -83,33 +114,29 @@ contract WikiChain{
         WikiChainUtilities.ArticleOutput [] memory outputs;
         WikiChainUtilities.Address2Id [] memory results;
         
+        // Control if there is already a entry for the given url in the register.
         if ( URL2Addresses[url].length != 0 ){
 	        results = URL2Addresses[url];
 	        
-	        // read the informations out ofthe contract addresses, we just find
+	       // Call the informations out of the contract addresses, we just find.
 	       outputs = callContracts(results);
 	        
 	    } else{
-	        // There is not entry for the given url.
+	        // There is not entry for the given url. Make sure the outputs array is empty.
 	        delete outputs;
 	    }
 	    
 	    emit requestFunction(outputs.length, url);
+
 	    return outputs;
       
     }
-    
-    function callContract(address payable article) public view returns (WikiChainUtilities.ArticleOutput memory){
-	    
-	    require (article != address(0), "The contract address is not valid. Please give another one.");
-	    WikiChainArticle tmp = WikiChainArticle(article);
-	    
-	    //emit callContractData(article, tmp.pageid(), tmp.revid(), tmp.title());
-	   
-	   return tmp.toString();
-	}
-    
-     function lookup ( string memory url, uint pageid, uint revid) internal view returns (bool) {
+     
+    /*
+     * Lookup in the register if the given url, pageid and revid have already saved.
+     *
+    */
+  	function lookup ( string memory url, uint pageid, uint revid) internal view returns (bool) {
         // lookp in the register if a given url already exist before crawling the blockchain for the corresponding contracts
         WikiChainUtilities.Address2Id [] memory results;
         
@@ -126,7 +153,11 @@ contract WikiChain{
 	    return false;
     }
     
-    function callContracts(WikiChainUtilities.Address2Id [] memory results) internal view returns (WikiChainUtilities.ArticleOutput [] memory){
+    /*
+     * Call the contracts using the address found in the register.
+     *
+    */
+   	function callContracts(WikiChainUtilities.Address2Id [] memory results) internal view returns (WikiChainUtilities.ArticleOutput [] memory){
 	    
 	    require (results.length > 0, "There is no contract to check out.");
 	    
@@ -137,15 +168,15 @@ contract WikiChain{
         }
 	   return ops;
 	}
-	
-	// If the contract received some ether, it will handel it
-	function () external payable positiveValue {
-	    require(msg.data.length == 0);
-	    emit newDeposit( msg.sender, msg.value, block.timestamp);
-	}
-	
-	function getRegisterCounter() public view returns(uint){
-	    return counter;
+
+	function callContract(address payable article) public view returns (WikiChainUtilities.ArticleOutput memory){
+	    
+	    require (article != address(0), "The contract address is not valid. Please give another one.");
+	    WikiChainArticle tmp = WikiChainArticle(article);
+	    
+	    //emit callContractData(article, tmp.pageid(), tmp.revid(), tmp.title());
+	   
+	   return tmp.toString();
 	}
 	
 }

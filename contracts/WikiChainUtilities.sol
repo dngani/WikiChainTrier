@@ -1,13 +1,14 @@
 pragma solidity ^0.5.0;
 
 library WikiChainUtilities {
+    
      struct Article {
         uint pageid;
-    	uint revid;
-    	string url;
-    	string title;
-    	string description;
-    	string lastmodified;
+        uint revid;
+        string title;
+        string lastmodified;
+        string url;
+        string description;
     }
     
      struct Address2Id {
@@ -17,13 +18,13 @@ library WikiChainUtilities {
     }
     
     struct ArticleOutput{
-	    address myaddress;
-	    uint pageid;
-	    uint revid;
-	    string url;
-	    string title;
-	    string description;
-	    string lastmodified;
-	}
+        address myaddress;
+        uint pageid;
+        uint revid;
+        string url;
+        string title;
+        string description;
+        string lastmodified;
+    }
     
 }

@@ -67,7 +67,7 @@
        </div>
        
        <div class="requestForm col-xs-12 col-md-12">
-        <form id="get-wiki-api" method="get" onsubmit="App.retrieveLastEntries(event)">
+        <form id="access-wiki-api" method="get" onsubmit="App.retrieveAndSaveRecentChanges(event)">
             <div class="row">
               <div class='col-md-6'>
                 <div class="form-group">
@@ -99,9 +99,9 @@
                 <label>Limit</label>
                 <select class="form-control" id="queryLimit">
                   <option value="10">10</option>
-                  <option value="20">20</option>
+                  <option value="20" selected="selected">20</option>
                   <option value="50">50</option>
-                  <option value="100" selected="selected">100</option>
+                  <option value="100">100</option>
                   <option value="500">500</option>
                 </select> 
              </div>
@@ -130,7 +130,7 @@
             </div>
           </div>
 
-           <button type="submit" class="btn btn-primary" form="get-wiki-api"> Submit </button>
+           <button type="submit" class="btn btn-primary" form="access-wiki-api"> Submit & Save in the Blockchain </button>
         </form>
     </div>
 
@@ -158,6 +158,9 @@
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
     <!-- Include all compiled plugins (below), or include individual files as needed -->
     <script src="js/bootstrap.min.js"></script>
+    <!--  <script src="js/web3.min.js"></script> -->
+    <script src="js/web3.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js/dist/web3.min.js"></script> -->
     <!-- <script src="js/truffle-contract.js"></script> -->
     <script src="js/app.js"></script>
   </body>
